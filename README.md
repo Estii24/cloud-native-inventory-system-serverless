@@ -21,10 +21,10 @@ The Backend exposes secure REST APIs while the Frontend consumes them to perform
 ## 🖼️ Application Screenshots (LIVE Demo)
 
 ### 📊 Dashboard Overview
-![Dashboard](inventory-dashboard/assets/screenshots/dashboard.png)
+![Dashboard](inventory-dashboard/assets/screenshots/dashboard.png.png)
 
 ### 📦 Products List
-![Products](inventory-dashboard/assets/screenshots/products.png)
+![Products](inventory-dashboard/assets/screenshots/products.png.png)
 
 ### ➕ Add Product
 ![Add Product](inventory-dashboard/assets/screenshots/add-product.png)
