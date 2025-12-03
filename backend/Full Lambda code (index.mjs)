@@ -1,0 +1,390 @@
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import {
+  DynamoDBDocumentClient,
+  ScanCommand,
+  UpdateCommand,
+  PutCommand,
+  DeleteCommand,
+} from "@aws-sdk/lib-dynamodb";
+import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
+
+const client = new DynamoDBClient({});
+const docClient = DynamoDBDocumentClient.from(client);
+
+const snsClient = new SNSClient({});
+const TABLE_NAME = process.env.TABLE_NAME || "Inventory_table";
+const LOW_STOCK_TOPIC_ARN = process.env.LOW_STOCK_TOPIC_ARN;
+
+// ---------- helpers ----------
+
+const normalizeItem = (item = {}) => {
+  const pk = item.pk || item.PK;
+  const sk = item.sk || item.SK;
+  return { ...item, pk, sk };
+};
+
+const getProductIdFromItem = (rawItem) => {
+  const item = normalizeItem(rawItem);
+
+  if (item.productId) return String(item.productId);
+  if (item.sk && typeof item.sk === "string" && item.sk.startsWith("PRODUCT#")) {
+    return item.sk.split("#")[1];
+  }
+  return undefined;
+};
+
+const mapItemToProduct = (rawItem) => {
+  const item = normalizeItem(rawItem);
+  const productId = getProductIdFromItem(item);
+
+  return {
+    id: productId,
+    name: item.name || "Unnamed product",
+    sku: item.sku || "",
+    stock: Number(item.stock ?? 0),
+    threshold: Number(item.reorderThreshold ?? item.threshold ?? 0),
+    price: Number(item.price ?? 0),
+    lastSoldDate: item.lastSoldDate || null,
+    imageUrl: item.imageKey || null,
+  };
+};
+
+const buildResponse = (statusCode, body) => ({
+  statusCode,
+  headers: {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "*",
+    "Access-Control-Allow-Methods": "*",
+  },
+  body: JSON.stringify(body),
+});
+
+const findByProductKey = async (idOrName) => {
+  const res = await docClient.send(
+    new ScanCommand({
+      TableName: TABLE_NAME,
+    })
+  );
+
+  const items = res.Items || [];
+  const needle = String(idOrName);
+
+  const item = items
+    .map(normalizeItem)
+    .find((it) => {
+      const productId = getProductIdFromItem(it);
+      return (
+        productId === needle ||
+        String(it.name || "") === needle ||
+        String(it.sku || "") === needle
+      );
+    });
+
+  return item;
+};
+
+// ---------- SNS: low-stock helper ----------
+
+const maybeSendLowStockAlert = async (product) => {
+  try {
+    if (!LOW_STOCK_TOPIC_ARN) {
+      console.warn("LOW_STOCK_TOPIC_ARN not set; skipping low stock SNS alert");
+      return;
+    }
+
+    if (
+      product == null ||
+      product.stock == null ||
+      product.threshold == null
+    ) {
+      return;
+    }
+
+    if (product.stock > product.threshold) {
+      // Not low stock, no alert
+      return;
+    }
+
+    const subject = `Low Stock Alert: ${product.name || product.id}`;
+    const message = `Warning! The product "${
+      product.name || product.id
+    }" (ID: ${product.id}) has low stock.
+
+Current Stock: ${product.stock}
+Threshold: ${product.threshold}`;
+
+    await snsClient.send(
+      new PublishCommand({
+        TopicArn: LOW_STOCK_TOPIC_ARN,
+        Subject: subject,
+        Message: message,
+      })
+    );
+
+    console.log("Low stock alert published for product:", product.id);
+  } catch (err) {
+    console.error("Failed to publish low stock alert", err);
+  }
+};
+
+// ---------- main handler ----------
+
+export const handler = async (event) => {
+  console.log("Event:", JSON.stringify(event));
+
+  const method = event?.httpMethod || "GET";
+  const path = event?.path || event?.rawPath || "";
+
+  try {
+    if (method === "OPTIONS") {
+      return buildResponse(200, { ok: true });
+    }
+
+    const adjustMatch = path.match(/\/products\/([^/]+)\/adjust\/?$/);
+    const productMatch = path.match(/\/products\/([^/]+)\/?$/);
+    const isProductsPath = /\/products\/?$/.test(path);
+
+    // 1) CREATE product  (POST /products)
+    if (method === "POST" && isProductsPath) {
+      const body = JSON.parse(event.body || "{}");
+
+      const productId = body.productId;
+      const name = body.name;
+      const sku = body.sku || "";
+      const category = body.category || null;
+      const price = Number(body.price ?? 0);
+      const stock = Number(body.stock ?? 0);
+      const threshold = Number(body.threshold ?? body.reorderThreshold ?? 0);
+      const imageKey = body.imageUrl || body.imageKey || null;
+
+      const storeId =
+        body.storeId || body.store || body.shop || "DefaultStore";
+
+      if (!productId || !name) {
+        return buildResponse(400, {
+          message: "productId and name are required",
+        });
+      }
+
+      const existing = await findByProductKey(productId);
+      if (existing) {
+        return buildResponse(409, { message: "Product already exists" });
+      }
+
+      const now = new Date().toISOString();
+
+      const item = {
+        pk: `SHOP#${storeId}`,
+        sk: `PRODUCT#${productId}`,
+        GS1PK: `SHOP#${storeId}`,
+        GS1SK: `PRODUCT#${productId}`,
+        productId,
+        name,
+        sku,
+        category,
+        price,
+        stock,
+        reorderThreshold: threshold,
+        imageKey,
+        createdAt: now,
+      };
+
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: item,
+          ConditionExpression:
+            "attribute_not_exists(pk) AND attribute_not_exists(sk)",
+        })
+      );
+
+      // You can choose to send alert on create if already low stock; optional:
+      const createdProduct = mapItemToProduct(item);
+      await maybeSendLowStockAlert(createdProduct);
+
+      return buildResponse(201, createdProduct);
+    }
+
+    // 2) ADJUST STOCK  (POST /products/{id}/adjust)
+    if (method === "POST" && adjustMatch) {
+      const idOrName = decodeURIComponent(adjustMatch[1]);
+      const body = JSON.parse(event.body || "{}");
+      const delta = Number(body.delta);
+
+      if (!Number.isFinite(delta) || delta === 0) {
+        return buildResponse(400, { message: "Invalid stock delta" });
+      }
+
+      const item = await findByProductKey(idOrName);
+      if (!item) {
+        console.log("Product not found for adjust:", idOrName);
+        return buildResponse(404, { message: "Product not found" });
+      }
+
+      const norm = normalizeItem(item);
+
+      const updated = await docClient.send(
+        new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: { pk: norm.pk, sk: norm.sk },
+          UpdateExpression:
+            "SET stock = if_not_exists(stock, :zero) + :delta",
+          ExpressionAttributeValues: {
+            ":delta": delta,
+            ":zero": 0,
+          },
+          ReturnValues: "ALL_NEW",
+        })
+      );
+
+      const updatedProduct = mapItemToProduct(updated.Attributes);
+      await maybeSendLowStockAlert(updatedProduct);
+
+      return buildResponse(200, updatedProduct);
+    }
+
+    // 3) EDIT PRODUCT (PATCH /products/{id})
+    if (method === "PATCH" && productMatch && !isProductsPath) {
+      const idOrName = decodeURIComponent(productMatch[1]);
+      const body = JSON.parse(event.body || "{}");
+
+      const item = await findByProductKey(idOrName);
+      if (!item) {
+        console.log("Product not found for update:", idOrName);
+        return buildResponse(404, { message: "Product not found" });
+      }
+
+      const norm = normalizeItem(item);
+
+      const allowedFields = {
+        name: "name",
+        sku: "sku",
+        category: "category",
+        price: "price",
+        stock: "stock",
+        threshold: "reorderThreshold",
+        reorderThreshold: "reorderThreshold",
+        imageUrl: "imageKey",
+        imageKey: "imageKey",
+      };
+
+      const keys = Object.keys(body).filter((k) => allowedFields[k]);
+      if (keys.length === 0) {
+        return buildResponse(400, { message: "No updatable fields provided" });
+      }
+
+      const exprNames = {};
+      const exprValues = {};
+      const sets = [];
+
+      keys.forEach((k, i) => {
+        const attr = allowedFields[k];
+        const nameKey = `#k${i}`;
+        const valueKey = `:v${i}`;
+        exprNames[nameKey] = attr;
+        exprValues[valueKey] =
+          k === "threshold" ? Number(body[k]) : body[k];
+        sets.push(`${nameKey} = ${valueKey}`);
+      });
+
+      const updated = await docClient.send(
+        new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: { pk: norm.pk, sk: norm.sk },
+          UpdateExpression: `SET ${sets.join(", ")}`,
+          ExpressionAttributeNames: exprNames,
+          ExpressionAttributeValues: exprValues,
+          ReturnValues: "ALL_NEW",
+        })
+      );
+
+      const updatedProduct = mapItemToProduct(updated.Attributes);
+      await maybeSendLowStockAlert(updatedProduct);
+
+      return buildResponse(200, updatedProduct);
+    }
+
+    // 4) DELETE PRODUCT (DELETE /products/{id})
+    if (method === "DELETE" && productMatch && !isProductsPath) {
+      const idOrName = decodeURIComponent(productMatch[1]);
+
+      const item = await findByProductKey(idOrName);
+      if (!item) {
+        console.log("Product not found for delete:", idOrName);
+        return buildResponse(404, { message: "Product not found" });
+      }
+
+      const norm = normalizeItem(item);
+
+      await docClient.send(
+        new DeleteCommand({
+          TableName: TABLE_NAME,
+          Key: { pk: norm.pk, sk: norm.sk },
+        })
+      );
+
+      return buildResponse(200, { ok: true });
+    }
+
+    // 5) GET /products/{id}
+    if (method === "GET" && productMatch && !isProductsPath) {
+      const idOrName = decodeURIComponent(productMatch[1]);
+      const item = await findByProductKey(idOrName);
+
+      if (!item) {
+        console.log("Product not found for get:", idOrName);
+        return buildResponse(404, { message: "Product not found" });
+      }
+
+      return buildResponse(200, mapItemToProduct(item));
+    }
+
+    // 6) GET /products
+    if (method === "GET" && isProductsPath) {
+      const res = await docClient.send(
+        new ScanCommand({
+          TableName: TABLE_NAME,
+        })
+      );
+
+      const items = (res.Items || []).map(normalizeItem);
+
+      const products = items
+        .filter((it) => it.sk && String(it.sk).startsWith("PRODUCT#"))
+        .map(mapItemToProduct)
+        .filter((p) => !!p.id);
+
+      return buildResponse(200, products);
+    }
+
+    // 7) GET /alerts
+    if (method === "GET" && /\/alerts\/?$/.test(path)) {
+      const res = await docClient.send(
+        new ScanCommand({
+          TableName: TABLE_NAME,
+        })
+      );
+
+      const items = (res.Items || []).map(normalizeItem);
+
+      const alerts = items
+        .filter((it) => it.sk && String(it.sk).startsWith("PRODUCT#"))
+        .map(mapItemToProduct)
+        .filter((p) => !!p.id && p.stock <= p.threshold);
+
+      return buildResponse(200, alerts);
+    }
+
+    // 8) GET /trends (stub)
+    if (method === "GET" && /\/trends(\/|\?|$)/.test(path)) {
+      return buildResponse(200, []);
+    }
+
+    console.log("No route matched for", method, path);
+    return buildResponse(404, { message: "Route not found" });
+  } catch (err) {
+    console.error(err);
+    return buildResponse(500, { message: "Failed to process request" });
+  }
+};
